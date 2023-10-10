@@ -1,27 +1,32 @@
-# operations.py
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-import sqlite3
-from .models import DB_NAME
+# Setup authentication with gspread
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name("keyfile.json", scope)
+client = gspread.authorize(creds)
+
+# Assuming the name of your Google Sheet is 'StocksApp'
+sheet = client.open("StocksApp")
 
 def get_all_stocks():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    return c.execute("SELECT id, name FROM stocks").fetchall()
+    stocks_worksheet = sheet.worksheet("stocks")
+    # Assuming first column is ID and second is name
+    return stocks_worksheet.get_all_records()
 
 def add_new_stock(name):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("INSERT INTO stocks (name) VALUES (?)", (name,))
-    conn.commit()
+    stocks_worksheet = sheet.worksheet("stocks")
+    # Append a new row with stock details
+    next_row = len(stocks_worksheet.get_all_values()) + 1
+    stocks_worksheet.append_row([next_row, name])
 
 def record_transaction(stock_id, amount, transaction_type):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("INSERT INTO transactions (stock_id, amount, transaction_type) VALUES (?, ?, ?)", (stock_id, amount, transaction_type))
-    conn.commit()
+    transactions_worksheet = sheet.worksheet("transactions")
+    # Append a new row with transaction details
+    transactions_worksheet.append_row([stock_id, amount, transaction_type])
 
 def get_stock_total(stock_id):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    total = c.execute("SELECT SUM(amount) FROM transactions WHERE stock_id=?", (stock_id,)).fetchone()[0]
+    transactions_worksheet = sheet.worksheet("transactions")
+    records = transactions_worksheet.get_all_records()
+    total = sum([record['amount'] for record in records if record['stock_id'] == stock_id])
     return total if total else 0
